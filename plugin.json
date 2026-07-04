@@ -1,0 +1,133 @@
+{
+  "id": "com.company.external-push-bridge",
+  "name": "External Push Bridge",
+  "description": "Forwards Mattermost push notification decisions to an external HTTP API.",
+  "version": "0.1.0",
+  "min_server_version": "9.0.0",
+  "server": {
+    "executables": {
+      "linux-amd64": "server/dist/plugin-linux-amd64",
+      "linux-arm64": "server/dist/plugin-linux-arm64"
+    }
+  },
+  "settings_schema": {
+    "header": "External Push Bridge",
+    "footer": "",
+    "settings": [
+      {
+        "key": "Enabled",
+        "display_name": "Enabled",
+        "type": "bool",
+        "help_text": "Enable forwarding of supported Mattermost push notifications.",
+        "default": false
+      },
+      {
+        "key": "ExternalAPIURL",
+        "display_name": "External API URL",
+        "type": "text",
+        "help_text": "HTTP or HTTPS endpoint that receives POST requests."
+      },
+      {
+        "key": "AuthorizationType",
+        "display_name": "Authorization Type",
+        "type": "dropdown",
+        "help_text": "Currently supported: Bearer.",
+        "options": [
+          {
+            "display_name": "None",
+            "value": ""
+          },
+          {
+            "display_name": "Bearer",
+            "value": "bearer"
+          }
+        ],
+        "default": ""
+      },
+      {
+        "key": "AuthorizationToken",
+        "display_name": "Authorization Token",
+        "type": "text",
+        "help_text": "Secret token used when Authorization Type is Bearer.",
+        "secret": true
+      },
+      {
+        "key": "IncludeMessageText",
+        "display_name": "Include Message Text",
+        "type": "bool",
+        "help_text": "When disabled, post.message is omitted from payloads and outbox storage.",
+        "default": false
+      },
+      {
+        "key": "MaxMessageTextLength",
+        "display_name": "Max Message Text Length",
+        "type": "number",
+        "help_text": "Maximum number of Unicode characters to send when Include Message Text is enabled. Zero means unlimited.",
+        "default": 0
+      },
+      {
+        "key": "RequestTimeoutSeconds",
+        "display_name": "Request Timeout Seconds",
+        "type": "number",
+        "help_text": "Per-request timeout for the external API.",
+        "default": 5
+      },
+      {
+        "key": "MaxRetries",
+        "display_name": "Max Retries",
+        "type": "number",
+        "help_text": "Maximum number of delivery attempts for retryable failures.",
+        "default": 5
+      },
+      {
+        "key": "InitialRetryDelayMilliseconds",
+        "display_name": "Initial Retry Delay Milliseconds",
+        "type": "number",
+        "help_text": "Base delay before the first retry.",
+        "default": 500
+      },
+      {
+        "key": "MaxRetryDelaySeconds",
+        "display_name": "Max Retry Delay Seconds",
+        "type": "number",
+        "help_text": "Maximum backoff delay between retries.",
+        "default": 30
+      },
+      {
+        "key": "WorkerCount",
+        "display_name": "Worker Count",
+        "type": "number",
+        "help_text": "Number of asynchronous HTTP workers.",
+        "default": 2
+      },
+      {
+        "key": "QueueSize",
+        "display_name": "Queue Size",
+        "type": "number",
+        "help_text": "Buffered in-memory queue size for pending event IDs.",
+        "default": 1024
+      },
+      {
+        "key": "TLSVerify",
+        "display_name": "TLS Verify",
+        "type": "bool",
+        "help_text": "Verify external API TLS certificates.",
+        "default": true
+      },
+      {
+        "key": "AdditionalHeaders",
+        "display_name": "Additional Headers",
+        "type": "textarea",
+        "help_text": "JSON object with fixed HTTP headers, for example {\"X-Env\":\"test\"}. Authorization is managed separately.",
+        "default": "{}"
+      },
+      {
+        "key": "TestUsernames",
+        "display_name": "Test Usernames",
+        "type": "text",
+        "help_text": "Comma-separated Mattermost usernames for which the plugin is enabled. When the field is empty, the plugin works for all users. Example: ivanov, petrov, sidorova",
+        "default": ""
+      }
+    ]
+  }
+}
