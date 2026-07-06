@@ -30,13 +30,17 @@ bundle: build
 	cp $(SERVER_BIN_LINUX_AMD64) $(STAGING_DIR)/$(SERVER_BIN_LINUX_AMD64)
 	cp $(SERVER_BIN_LINUX_ARM64) $(STAGING_DIR)/$(SERVER_BIN_LINUX_ARM64)
 	chmod 755 $(STAGING_DIR)/$(SERVER_BIN_LINUX_AMD64) $(STAGING_DIR)/$(SERVER_BIN_LINUX_ARM64)
-	tar -C $(STAGING_DIR) --owner=0 --group=0 --numeric-owner -czf $(BUNDLE) plugin.json server/dist
+	tar -C $(STAGING_DIR) --owner=0 --group=0 --numeric-owner -czf $(BUNDLE) plugin.json server
 	rm -rf $(STAGING_DIR)
 	$(MAKE) validate-bundle
 
 validate-bundle:
 	gzip -t $(BUNDLE)
-	tar -tzf $(BUNDLE) plugin.json server/dist/plugin-linux-amd64 server/dist/plugin-linux-arm64 >/dev/null
+	tar -tzf $(BUNDLE) | grep -Fx plugin.json >/dev/null
+	tar -tzf $(BUNDLE) | grep -Fx server/ >/dev/null
+	tar -tzf $(BUNDLE) | grep -Fx server/dist/ >/dev/null
+	tar -tzf $(BUNDLE) | grep -Fx server/dist/plugin-linux-amd64 >/dev/null
+	tar -tzf $(BUNDLE) | grep -Fx server/dist/plugin-linux-arm64 >/dev/null
 
 clean:
 	rm -rf server/dist dist
