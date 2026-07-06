@@ -2,6 +2,7 @@ PLUGIN_ID := com.company.external-push-bridge
 VERSION := 0.1.0
 DIST_DIR := dist
 STAGING_DIR := $(DIST_DIR)/bundle
+GO_BUILD_LDFLAGS := -s -w
 SERVER_BIN_LINUX_AMD64 := server/dist/plugin-linux-amd64
 SERVER_BIN_LINUX_ARM64 := server/dist/plugin-linux-arm64
 BUNDLE := $(DIST_DIR)/$(PLUGIN_ID)-$(VERSION).tar.gz
@@ -18,8 +19,8 @@ test:
 
 build:
 	mkdir -p server/dist
-	GOOS=linux GOARCH=amd64 go build -o $(SERVER_BIN_LINUX_AMD64) ./server
-	GOOS=linux GOARCH=arm64 go build -o $(SERVER_BIN_LINUX_ARM64) ./server
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(GO_BUILD_LDFLAGS)" -o $(SERVER_BIN_LINUX_AMD64) ./server
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$(GO_BUILD_LDFLAGS)" -o $(SERVER_BIN_LINUX_ARM64) ./server
 
 bundle: build
 	mkdir -p $(DIST_DIR)
