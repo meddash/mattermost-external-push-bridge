@@ -127,6 +127,13 @@
         "type": "text",
         "help_text": "Comma-separated Mattermost usernames for which the plugin is enabled. When the field is empty, the plugin works for all users. Example: ivanov, petrov, sidorova",
         "default": ""
+      },
+      {
+        "key": "DebugLogging",
+        "display_name": "Debug Logging",
+        "type": "bool",
+        "help_text": "Write detailed diagnostic logs for hook filtering, enqueueing, and delivery attempts. Message text and authorization tokens are not logged.",
+        "default": false
       }
     ]
   }

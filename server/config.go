@@ -27,6 +27,7 @@ type configuration struct {
 	TLSVerify                     bool
 	AdditionalHeaders             string
 	TestUsernames                 string
+	DebugLogging                  bool
 }
 
 type runtimeConfig struct {
@@ -46,6 +47,7 @@ type runtimeConfig struct {
 	AdditionalHeaders      map[string]string
 	TestUsernameFilter     map[string]struct{}
 	TestModeEnabled        bool
+	DebugLogging           bool
 	HTTPClient             *http.Client
 	NormalizedEndpointHost string
 }
@@ -71,6 +73,7 @@ func parseRuntimeConfig(cfg configuration) (*runtimeConfig, error) {
 		MaxMessageTextLength: cfg.MaxMessageTextLength,
 		MaxRetries:           cfg.MaxRetries,
 		TLSVerify:            true,
+		DebugLogging:         cfg.DebugLogging,
 	}
 
 	if cfg.RequestTimeoutSeconds <= 0 {

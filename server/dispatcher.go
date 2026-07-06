@@ -116,6 +116,16 @@ func (d *dispatcher) processEvent(workerID int, eventID string) {
 	}
 
 	cfg := d.getCfg()
+	if cfg.DebugLogging {
+		d.api.LogDebug("External push event delivery attempt started",
+			"event_id", eventID,
+			"post_id", record.Event.Post.PostID,
+			"recipient_user_id", record.Event.Recipient.UserID,
+			"attempt", record.AttemptCount+1,
+			"endpoint_host", cfg.NormalizedEndpointHost,
+			"worker_id", workerID,
+		)
+	}
 	ctx, cancel := context.WithTimeout(d.ctx, cfg.RequestTimeout+2*time.Second)
 	result := sendEvent(ctx, cfg, record.Event)
 	cancel()
@@ -170,6 +180,7 @@ func (d *dispatcher) processEvent(workerID int, eventID string) {
 			"attempt", attempt,
 			"http_status", result.httpStatus,
 			"error_type", result.errCategory,
+			"endpoint_host", cfg.NormalizedEndpointHost,
 		)
 		return
 	}
@@ -190,6 +201,7 @@ func (d *dispatcher) processEvent(workerID int, eventID string) {
 		"attempt", attempt,
 		"http_status", result.httpStatus,
 		"error_type", result.errCategory,
+		"endpoint_host", cfg.NormalizedEndpointHost,
 	)
 }
 

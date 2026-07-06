@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -26,8 +27,8 @@ type Plugin struct {
 }
 
 func (p *Plugin) OnActivate() error {
-	if p.api == nil {
-		p.api = p.API
+	if err := p.ensureAPI(); err != nil {
+		return err
 	}
 	p.metrics = &metrics{}
 	p.userCache = newTTLCache[*model.User](defaultCacheTTL)
@@ -56,7 +57,20 @@ func (p *Plugin) OnConfigurationChange() error {
 	return p.reloadConfiguration()
 }
 
+func (p *Plugin) ensureAPI() error {
+	if p.api == nil {
+		p.api = p.API
+	}
+	if p.api == nil {
+		return errors.New("Mattermost plugin API is not initialized")
+	}
+	return nil
+}
+
 func (p *Plugin) reloadConfiguration() error {
+	if err := p.ensureAPI(); err != nil {
+		return err
+	}
 	var cfg configuration
 	if err := p.api.LoadPluginConfiguration(&cfg); err != nil {
 		return err
@@ -68,6 +82,15 @@ func (p *Plugin) reloadConfiguration() error {
 	}
 
 	p.config.Store(runtimeCfg)
+	p.api.LogInfo("External push bridge configuration loaded",
+		"enabled", runtimeCfg.Enabled,
+		"endpoint_host", runtimeCfg.NormalizedEndpointHost,
+		"worker_count", runtimeCfg.WorkerCount,
+		"queue_size", runtimeCfg.QueueSize,
+		"test_mode_enabled", runtimeCfg.TestModeEnabled,
+		"allowed_user_count", len(runtimeCfg.TestUsernameFilter),
+		"debug_logging", runtimeCfg.DebugLogging,
+	)
 	if runtimeCfg.TestModeEnabled {
 		p.api.LogInfo("External push bridge test mode enabled", "allowed_user_count", len(runtimeCfg.TestUsernameFilter))
 	} else {
@@ -103,13 +126,28 @@ func (p *Plugin) NotificationWillBePushed(pushNotification *model.PushNotificati
 	p.metrics.hookReceived.Add(1)
 
 	cfg := p.getConfig()
-	if cfg == nil || !cfg.Enabled || pushNotification == nil {
+	if cfg == nil {
+		return nil, ""
+	}
+	if !cfg.Enabled {
+		p.debugLog(cfg, "Notification skipped because plugin is disabled")
+		return nil, ""
+	}
+	if pushNotification == nil {
+		p.debugLog(cfg, "Notification skipped because payload is nil", "recipient_user_id", userID)
 		return nil, ""
 	}
 	if pushNotification.Type != model.PushTypeMessage || pushNotification.PostId == "" {
+		p.debugLog(cfg, "Notification skipped because it is not a message push",
+			"recipient_user_id", userID,
+			"push_type", pushNotification.Type,
+			"push_subtype", pushNotification.SubType,
+			"post_id_present", pushNotification.PostId != "",
+		)
 		return nil, ""
 	}
 	if pushNotification.SubType == model.PushSubTypeCalls {
+		p.debugLog(cfg, "Notification skipped because calls subtype is ignored", "recipient_user_id", userID, "post_id", pushNotification.PostId)
 		return nil, ""
 	}
 
@@ -120,7 +158,10 @@ func (p *Plugin) NotificationWillBePushed(pushNotification *model.PushNotificati
 	}
 	if cfg.TestModeEnabled {
 		if _, ok := cfg.TestUsernameFilter[strings.ToLower(recipient.Username)]; !ok {
-			p.api.LogDebug("Notification skipped because recipient is not included in TestUsernames", "recipient_user_id", userID)
+			p.debugLog(cfg, "Notification skipped because recipient is not included in TestUsernames",
+				"recipient_user_id", userID,
+				"recipient_username", recipient.Username,
+			)
 			return nil, ""
 		}
 	}
@@ -131,9 +172,18 @@ func (p *Plugin) NotificationWillBePushed(pushNotification *model.PushNotificati
 		return nil, ""
 	}
 	if post.Type != "" {
+		p.debugLog(cfg, "Notification skipped because post type is ignored",
+			"recipient_user_id", userID,
+			"post_id", post.Id,
+			"post_type", post.Type,
+		)
 		return nil, ""
 	}
 	if post.UserId == userID {
+		p.debugLog(cfg, "Notification skipped because sender and recipient are the same user",
+			"recipient_user_id", userID,
+			"post_id", post.Id,
+		)
 		return nil, ""
 	}
 
@@ -164,6 +214,11 @@ func (p *Plugin) NotificationWillBePushed(pushNotification *model.PushNotificati
 	}
 	if !inserted {
 		p.metrics.hookDeduplicated.Add(1)
+		p.debugLog(cfg, "Notification deduplicated",
+			"event_id", event.EventID,
+			"post_id", event.Post.PostID,
+			"recipient_user_id", event.Recipient.UserID,
+		)
 		return nil, ""
 	}
 
@@ -172,7 +227,19 @@ func (p *Plugin) NotificationWillBePushed(pushNotification *model.PushNotificati
 		return nil, ""
 	}
 	p.metrics.hookEnqueued.Add(1)
+	p.debugLog(cfg, "Notification enqueued for external delivery",
+		"event_id", event.EventID,
+		"post_id", event.Post.PostID,
+		"recipient_user_id", event.Recipient.UserID,
+		"endpoint_host", cfg.NormalizedEndpointHost,
+	)
 	return nil, ""
+}
+
+func (p *Plugin) debugLog(cfg *runtimeConfig, msg string, keyValuePairs ...any) {
+	if cfg != nil && cfg.DebugLogging {
+		p.api.LogDebug(msg, keyValuePairs...)
+	}
 }
 
 func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Request) {
@@ -186,13 +253,13 @@ func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Req
 		queueDepth = p.dispatcher.QueueDepth()
 	}
 	snapshot := healthSnapshot{
-		Enabled:          cfg != nil && cfg.Enabled,
-		TestModeEnabled:  cfg != nil && cfg.TestModeEnabled,
-		AllowedUserCount: len(cfg.TestUsernameFilter),
-		QueueDepth:       queueDepth,
-		WorkerCount:      cfg.WorkerCount,
+		Enabled:         cfg != nil && cfg.Enabled,
+		TestModeEnabled: cfg != nil && cfg.TestModeEnabled,
+		QueueDepth:      queueDepth,
 	}
 	if cfg != nil {
+		snapshot.AllowedUserCount = len(cfg.TestUsernameFilter)
+		snapshot.WorkerCount = cfg.WorkerCount
 		snapshot.EndpointHost = cfg.NormalizedEndpointHost
 	}
 	w.Header().Set("Content-Type", "application/json")
